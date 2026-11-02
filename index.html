@@ -1,0 +1,293 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0b0f0d">
+<title>AR Memorial</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Amiri:ital,wght@0,400;0,700;1,400&family=Cormorant+Garamond:ital,wght@0,500;0,700;1,500&family=Manrope:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* Layout: kamera layar penuh, karangan bunga melayang di tengah, dock geser 2 menu di bawah, panel Yasin naik di atas dock. */
+:root{
+  --ink:#0b0f0d;
+  --panel:rgba(12,16,14,.74);
+  --line:rgba(255,255,255,.14);
+  --bone:#f4f1e8;
+  --muted:#a9b0aa;
+  --gold:#c4ab6c;
+  --dock-h:150px;
+  --ar:'Amiri','Noto Naskh Arabic','Scheherazade New',serif;
+  --serif:'Cormorant Garamond',Georgia,serif;
+  --sans:'Manrope',system-ui,sans-serif;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;margin:0;background:var(--ink);color:var(--bone);font-family:var(--sans);overflow:hidden;overscroll-behavior:none}
+#cam{position:fixed;inset:0;width:100%;height:100%;object-fit:cover;opacity:0;transition:opacity .8s}
+.cam-on #cam{opacity:1}
+#fallback{position:fixed;inset:0;background:radial-gradient(120% 80% at 50% 30%,#1b2520 0%,#0b0f0d 70%)}
+.cam-on #fallback{display:none}
+#shade{position:fixed;inset:0;pointer-events:none;background:linear-gradient(180deg,rgba(0,0,0,.45),rgba(0,0,0,.05) 28%,rgba(0,0,0,.05) 50%,rgba(0,0,0,.6))}
+
+/* dunia AR */
+#world{position:fixed;inset:0;touch-action:none;overflow:hidden}
+#anchor{position:absolute;left:50%;top:46%;width:min(86vw,calc((100vh - var(--dock-h) - 120px) * .77));
+  transform:translate(-50%,-50%);transition:transform .7s cubic-bezier(.2,.8,.2,1)}
+body[data-mode="yasin"] #anchor{transform:translate(-50%,-50%) translateY(-28vh) scale(.38)}
+#user{will-change:transform}
+#sway{transform-origin:50% 100%;animation:sway 7s ease-in-out infinite}
+@keyframes sway{0%,100%{transform:rotate(-.6deg)}50%{transform:rotate(.6deg)}}
+#wreath{display:block;width:100%;height:auto;filter:drop-shadow(0 18px 24px rgba(0,0,0,.45))}
+#wreath text{font-kerning:normal}
+.t-ar{font-family:var(--ar)}
+.t-serif{font-family:var(--serif)}
+
+/* atas */
+#top{position:fixed;left:0;right:0;top:0;display:flex;justify-content:space-between;align-items:center;
+  padding:calc(12px + env(safe-area-inset-top,0px)) max(16px,env(safe-area-inset-left,0px)) 0 max(16px,env(safe-area-inset-left,0px));pointer-events:none}
+#top .lbl{font:600 11px/1 var(--sans);letter-spacing:.28em;text-transform:uppercase;color:var(--bone);opacity:.85}
+#top .lbl i{display:block;margin-top:6px;font:italic 500 15px/1 var(--serif);letter-spacing:.02em;text-transform:none;color:var(--gold)}
+.iconbtn{pointer-events:auto;width:42px;height:42px;border-radius:50%;border:1px solid var(--line);background:var(--panel);color:var(--bone);
+  display:grid;place-items:center;backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);cursor:pointer}
+.iconbtn:focus-visible,button:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+.iconbtn svg{width:20px;height:20px}
+
+#hint{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(var(--dock-h) + 14px);padding:8px 14px;border-radius:99px;font-size:12px;
+  background:var(--panel);border:1px solid var(--line);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);transition:opacity .6s;white-space:nowrap}
+body[data-mode="yasin"] #hint{display:none}
+
+/* izin kamera */
+#gate{position:fixed;inset:0;display:grid;place-items:center;padding:24px;text-align:center;background:rgba(11,15,13,.9);z-index:20;transition:opacity .5s}
+#gate.off{opacity:0;pointer-events:none}
+#gate h1{font:500 30px/1.15 var(--serif);margin:14px 0 8px}
+#gate p{margin:0 auto;max-width:30ch;color:var(--muted);font-size:14px;line-height:1.6}
+#gate button{margin-top:20px;padding:12px 22px;border-radius:99px;border:1px solid var(--gold);background:transparent;color:var(--bone);font:600 14px var(--sans);cursor:pointer}
+#gate .mark{font:400 34px/1.4 var(--ar);color:var(--gold)}
+
+/* dock geser */
+#dock{position:fixed;left:0;right:0;bottom:0;padding-bottom:calc(10px + env(safe-area-inset-bottom,0px));z-index:5}
+#track{display:flex;gap:12px;overflow-x:auto;scroll-snap-type:x mandatory;scrollbar-width:none;
+  padding:0 max(16px,env(safe-area-inset-left,0px));scroll-padding:0 16px}
+#track::-webkit-scrollbar{display:none}
+.slide{flex:0 0 min(84%,340px);scroll-snap-align:center;display:flex;align-items:center;gap:14px;padding:14px 16px;border-radius:18px;
+  background:var(--panel);border:1px solid var(--line);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);
+  color:inherit;text-align:left;font:inherit;cursor:pointer;transition:border-color .3s,opacity .3s;opacity:.6}
+.slide.on{border-color:var(--gold);opacity:1}
+.slide .ic{flex:none;width:46px;height:46px;border-radius:50%;display:grid;place-items:center;border:1px solid var(--line);color:var(--gold)}
+.slide .ic svg{width:24px;height:24px}
+.slide b{display:block;font:600 17px/1.2 var(--serif);letter-spacing:.02em}
+.slide small{display:block;margin-top:3px;font-size:12px;color:var(--muted);line-height:1.4}
+#dots{display:flex;justify-content:center;gap:7px;margin-top:10px}
+#dots i{width:6px;height:6px;border-radius:50%;background:rgba(255,255,255,.3);transition:all .3s}
+#dots i.on{width:18px;border-radius:4px;background:var(--gold)}
+
+/* panel yasin */
+#yasin{position:fixed;left:max(12px,env(safe-area-inset-left,0px));right:max(12px,env(safe-area-inset-right,0px));bottom:calc(var(--dock-h) + 8px);
+  max-height:min(56vh,520px);display:flex;flex-direction:column;border-radius:20px;background:var(--panel);border:1px solid var(--line);
+  backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);transform:translateY(24px);opacity:0;pointer-events:none;
+  transition:transform .5s cubic-bezier(.2,.8,.2,1),opacity .4s;z-index:4;overflow:hidden}
+body[data-mode="yasin"] #yasin{transform:none;opacity:1;pointer-events:auto}
+#player{padding:12px 14px 10px;border-bottom:1px solid var(--line);display:grid;grid-template-columns:auto 1fr auto;gap:6px 12px;align-items:center}
+#player .ttl{grid-column:1/-1;display:flex;justify-content:space-between;align-items:baseline}
+#player .ttl b{font:600 18px var(--serif)}
+#player .ttl span{font:500 12px var(--sans);color:var(--muted);font-variant-numeric:tabular-nums}
+#seek{grid-column:1/-1;width:100%;accent-color:var(--gold);height:20px;margin:0}
+#ctrl{grid-column:1/-1;display:flex;justify-content:center;align-items:center;gap:18px}
+#ctrl button{width:44px;height:44px;border-radius:50%;border:1px solid var(--line);background:transparent;color:var(--bone);display:grid;place-items:center;cursor:pointer}
+#ctrl button svg{width:20px;height:20px}
+#ctrl #play{width:56px;height:56px;background:var(--gold);color:#17120a;border-color:var(--gold)}
+#ctrl #play svg{width:24px;height:24px}
+#list{overflow-y:auto;padding:6px 6px 10px;scroll-behavior:smooth;-webkit-overflow-scrolling:touch}
+.v{display:grid;grid-template-columns:28px 1fr;gap:10px;padding:12px 10px;border-radius:12px;cursor:pointer;border-left:3px solid transparent;opacity:.55;transition:opacity .3s,background .3s}
+.v.on{opacity:1;background:rgba(196,171,108,.12);border-left-color:var(--gold)}
+.v .n{font:600 11px var(--sans);color:var(--gold);padding-top:10px;font-variant-numeric:tabular-nums}
+.v .a{font:400 26px/2 var(--ar);direction:rtl;text-align:right;margin:0}
+.v .l{font:italic 500 15px/1.4 var(--serif);color:var(--muted);margin:2px 0 0}
+.v.on .l{color:var(--bone)}
+@media (max-height:640px){#yasin{max-height:48vh}.v .a{font-size:22px}}
+@media (prefers-reduced-motion:reduce){#sway{animation:none}*{transition:none!important}}
+</style>
+</head>
+<body data-mode="wreath">
+<video id="cam" playsinline muted autoplay></video>
+<div id="fallback"></div>
+<div id="shade"></div>
+
+<div id="world"><div id="anchor"><div id="user"><div id="sway"><svg id="wreath" viewBox="0 0 600 790" role="img" aria-label="Karangan bunga duka cita"></svg></div></div></div></div>
+
+<div id="top">
+  <div class="lbl">AR Memorial<i>Turut berduka cita</i></div>
+  <button class="iconbtn" id="flip" aria-label="Balik kamera"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8a3 3 0 0 1 3-3h2l1.5-2h5L16 5h2a3 3 0 0 1 3 3v9a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3z"/><path d="M9 12.5a3.2 3.2 0 0 1 5.6-2M15 12.5a3.2 3.2 0 0 1-5.6 2"/></svg></button>
+</div>
+
+<div id="hint">Geser untuk memindah · cubit untuk memperbesar</div>
+
+<section id="yasin" aria-label="Pemutar Surah Yasin">
+  <div id="player">
+    <div class="ttl"><b>Surah Yasin</b><span id="time">00:00 / 00:00</span></div>
+    <input id="seek" type="range" min="0" max="1000" value="0" aria-label="Posisi audio">
+    <div id="ctrl">
+      <button id="prev" aria-label="Ayat sebelumnya"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 5h2v14H6zM20 5v14L9.5 12z"/></svg></button>
+      <button id="play" aria-label="Putar"><svg id="ico" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></button>
+      <button id="next" aria-label="Ayat berikutnya"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M16 5h2v14h-2zM4 5l10.5 7L4 19z"/></svg></button>
+    </div>
+  </div>
+  <div id="list"></div>
+</section>
+
+<nav id="dock" aria-label="Menu">
+  <div id="track">
+    <button class="slide on" data-i="0"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="12" cy="12" r="2.2"/><path d="M12 9.8C10.5 7.5 10.8 4.8 12 3c1.2 1.8 1.5 4.5 0 6.8zM14.2 12c2.3-1.5 5-1.2 6.8 0-1.8 1.2-4.5 1.5-6.8 0zM12 14.2c1.5 2.3 1.2 5 0 6.8-1.2-1.8-1.5-4.5 0-6.8zM9.8 12C7.5 13.5 4.8 13.2 3 12c1.8-1.2 4.5-1.5 6.8 0z"/></svg></span><span><b>Karangan Bunga</b><small>Ucapan duka cita untuk keluarga</small></span></button>
+    <button class="slide" data-i="1"><span class="ic"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zm-1.5 5.5 6 3.5-6 3.5z" opacity=".9"/></svg></span><span><b>Putar Yasin</b><small>Lantunan dan teks Surah Yasin</small></span></button>
+  </div>
+  <div id="dots"><i class="on"></i><i></i></div>
+</nav>
+
+<div id="gate">
+  <div>
+    <div class="mark">إِنَّا لِلَّٰهِ وَإِنَّا إِلَيْهِ رَاجِعُونَ</div>
+    <h1 id="gtitle">Mengaktifkan kamera</h1>
+    <p id="gtext">Izinkan akses kamera agar karangan bunga tampil di sekitar Anda.</p>
+    <button id="retry" hidden>Coba lagi</button>
+    <button id="skip" hidden>Lanjut tanpa kamera</button>
+  </div>
+</div>
+
+<audio id="aud" src="yasin.mp3" preload="metadata"></audio>
+<script id="vdata" type="application/json">[{"ar": "يٰسۤ ۚ", "lat": "yā sīn", "t": 0.0}, {"ar": "وَالْقُرْاٰنِ الْحَكِيْمِۙ", "lat": "wal-qur’ânil-ḫakîm", "t": 6.3}, {"ar": "اِنَّكَ لَمِنَ الْمُرْسَلِيْنَۙ", "lat": "innaka laminal-mursalīn", "t": 10.83}, {"ar": "عَلٰى صِرَاطٍ مُّسْتَقِيْمٍۗ", "lat": "‘alâ shirâthim mustaqîm", "t": 15.62}, {"ar": "تَنْزِيْلَ الْعَزِيْزِ الرَّحِيْمِۙ", "lat": "tanzîlal-‘azîzir-raḫîm", "t": 21.44}, {"ar": "لِتُنْذِرَ قَوْمًا مَّآ اُنْذِرَ اٰبَاۤؤُهُمْ فَهُمْ غٰفِلُوْنَ", "lat": "litundzira qaumam mâ undzira âbâ’uhum fa hum ghâfilûn", "t": 27.66}, {"ar": "لَقَدْ حَقَّ الْقَوْلُ عَلٰٓى اَكْثَرِهِمْ فَهُمْ لَا يُؤْمِنُوْنَ", "lat": "laqad ḫaqqal-qaulu ‘alâ aktsarihim fa hum lâ yu’minûn", "t": 34.16}, {"ar": "اِنَّا جَعَلْنَا فِيْٓ اَعْنَاقِهِمْ اَغْلٰلًا فَهِيَ اِلَى الْاَذْقَانِ فَهُمْ مُّقْمَحُوْنَ", "lat": "innâ ja‘alnâ fî a‘nâqihim aghlâlan fa hiya ilal-adzqâni fa hum muqmaḫûn", "t": 47.94}, {"ar": "وَجَعَلْنَا مِنْۢ بَيْنِ اَيْدِيْهِمْ سَدًّا وَّمِنْ خَلْفِهِمْ سَدًّا فَاَغْشَيْنٰهُمْ فَهُمْ لَا يُبْصِرُوْنَ", "lat": "wa ja‘alnâ mim baini aidîhim saddaw wa min khalfihim saddan fa aghsyainâhum fa hum lâ yubshirûn", "t": 57.1}, {"ar": "وَسَوَاۤءٌ عَلَيْهِمْ ءَاَنْذَرْتَهُمْ اَمْ لَمْ تُنْذِرْهُمْ لَا يُؤْمِنُوْنَ", "lat": "wa sawâ’un ‘alaihim a andzartahum am lam tundzir-hum lâ yu’minûn", "t": 72.23}, {"ar": "اِنَّمَا تُنْذِرُ مَنِ اتَّبَعَ الذِّكْرَ وَخَشِيَ الرَّحْمٰنَ بِالْغَيْبِۚ فَبَشِّرْهُ بِمَغْفِرَةٍ وَّاَجْرٍ كَرِيْمٍ", "lat": "innamâ tundziru manittaba‘adz-dzikra wa khasyiyar-raḫmâna bil-ghaîb, fa basysyir-hu bimaghfiratiw wa ajring karîm", "t": 87.78}, {"ar": "اِنَّا نَحْنُ نُحْيِ الْمَوْتٰى وَنَكْتُبُ مَا قَدَّمُوْا وَاٰثَارَهُمْۗ وَكُلَّ شَيْءٍ اَحْصَيْنٰهُ فِيْٓ اِمَامٍ مُّبِيْنٍ", "lat": "innâ naḫnu nuḫyil-mautâ wa naktubu mâ qaddamû wa âtsârahum, wa kulla syai’in aḫshainâhu fî imâmim mubîn", "t": 100.78}, {"ar": "وَاضْرِبْ لَهُمْ مَّثَلًا اَصْحٰبَ الْقَرْيَةِۘ اِذْ جَاۤءَهَا الْمُرْسَلُوْنَۚ", "lat": "wadlrib lahum matsalan ash-ḫâbal-qaryah, idz jâ’ahal-mursalûn", "t": 137.57}, {"ar": "اِذْ اَرْسَلْنَآ اِلَيْهِمُ اثْنَيْنِ فَكَذَّبُوْهُمَا فَعَزَّزْنَا بِثَالِثٍ فَقَالُوْٓا اِنَّآ اِلَيْكُمْ مُّرْسَلُوْنَ", "lat": "idz arsalnâ ilaihimutsnaini fa kadzdzabûhumâ fa ‘azzaznâ bitsâlitsin fa qâlû innâ ilaikum mursalûn", "t": 149.36}, {"ar": "قَالُوْا مَآ اَنْتُمْ اِلَّا بَشَرٌ مِّثْلُنَاۙ وَمَآ اَنْزَلَ الرَّحْمٰنُ مِنْ شَيْءٍۙ اِنْ اَنْتُمْ اِلَّا تَكْذِبُوْنَ", "lat": "qâlû mâ antum illâ basyarum mitslunâ wa mâ anzalar-raḫmânu min syai’in in antum illâ takdzibûn", "t": 161.04}, {"ar": "قَالُوْا رَبُّنَا يَعْلَمُ اِنَّآ اِلَيْكُمْ لَمُرْسَلُوْنَ", "lat": "qâlû rabbunâ ya‘lamu innâ ilaikum lamursalûn", "t": 171.32}, {"ar": "وَمَا عَلَيْنَآ اِلَّا الْبَلٰغُ الْمُبِيْنُ", "lat": "wa mâ ‘alainâ illal-balâghul-mubîn", "t": 191.38}, {"ar": "قَالُوْٓا اِنَّا تَطَيَّرْنَا بِكُمْۚ لَىِٕنْ لَّمْ تَنْتَهُوْا لَنَرْجُمَنَّكُمْ وَلَيَمَسَّنَّكُمْ مِّنَّا عَذَابٌ اَلِيْمٌ", "lat": "qâlû innâ tathayyarnâ bikum, la’il lam tantahû lanarjumannakum wa layamassannakum minnâ ‘adzâbun alîm", "t": 201.5}, {"ar": "قَالُوْا طَاۤىِٕرُكُمْ مَّعَكُمْۗ اَىِٕنْ ذُكِّرْتُمْۗ بَلْ اَنْتُمْ قَوْمٌ مُّسْرِفُوْن", "lat": "qâlû thâ’irukum ma‘akum, a in dzukkirtum, bal antum qaumum musrifûn", "t": 209.36}, {"ar": "وَجَاۤءَ مِنْ اَقْصَا الْمَدِيْنَةِ رَجُلٌ يَّسْعٰى قَالَ يٰقَوْمِ اتَّبِعُوا الْمُرْسَلِيْنَۙ", "lat": "wa jâ’a min aqshal-madînati rajuluy yas‘â qâla yâ qaumittabi‘ul-mursalîn", "t": 229.69}, {"ar": "اتَّبِعُوْا مَنْ لَّا يَسْـَٔلُكُمْ اَجْرًا وَّهُمْ مُّهْتَدُوْن", "lat": "ittabi‘û mal lâ yas’alukum ajraw wa hum muhtadûn", "t": 235.38}, {"ar": "وَمَا لِيَ لَآ اَعْبُدُ الَّذِيْ فَطَرَنِيْ وَاِلَيْهِ تُرْجَعُوْنَ", "lat": "wa mâ liya lâ a‘budulladzî fatharanî wa ilaihi turja‘ûn", "t": 246.02}, {"ar": "ءَاَتَّخِذُ مِنْ دُوْنِهٖٓ اٰلِهَةً اِنْ يُّرِدْنِ الرَّحْمٰنُ بِضُرٍّ لَّا تُغْنِ عَنِّيْ شَفَاعَتُهُمْ شَيْـًٔا وَّلَا يُنْقِذُوْنِۚ", "lat": "a attakhidzu min dûnihî âlihatan iy yuridnir-raḫmânu bidlurril lâ tughni ‘annî syafâ‘atuhum syai’aw wa lâ yungqidzûn", "t": 258.95}, {"ar": "اِنِّيْٓ اِذًا لَّفِيْ ضَلٰلٍ مُّبِيْنٍ", "lat": "innî idzal lafî dlalâlim mubîn", "t": 259.34}, {"ar": "اِنِّيْٓ اٰمَنْتُ بِرَبِّكُمْ فَاسْمَعُوْنِۗ", "lat": "innî âmantu birabbikum fasma‘ûn", "t": 269.14}, {"ar": "قِيْلَ ادْخُلِ الْجَنَّةَ ۗقَالَ يٰلَيْتَ قَوْمِيْ يَعْلَمُوْنَۙ", "lat": "qîladkhulil-jannah, qâla yâ laita qaumî ya‘lamûn", "t": 279.6}, {"ar": "بِمَا غَفَرَ لِيْ رَبِّيْ وَجَعَلَنِيْ مِنَ الْمُكْرَمِيْنَ", "lat": "bimâ ghafara lî rabbî wa ja‘alanî minal-mukramîn", "t": 299.14}, {"ar": "وَمَآ اَنْزَلْنَا عَلٰى قَوْمِهٖ مِنْۢ بَعْدِهٖ مِنْ جُنْدٍ مِّنَ السَّمَاۤءِ وَمَا كُنَّا مُنْزِلِيْنَ", "lat": "wa mâ anzalnâ ‘alâ qaumihî mim ba‘dihî min jundim minas-samâ’i wa mâ kunnâ munzilîn", "t": 308.77}, {"ar": "اِنْ كَانَتْ اِلَّا صَيْحَةً وَّاحِدَةً فَاِذَا هُمْ خَامِدُوْنَ", "lat": "ing kânat illâ shaiḫataw wâḫidatan fa idzâ hum khâmidûn", "t": 318.82}, {"ar": "يٰحَسْرَةً عَلَى الْعِبَادِۚ مَا يَأْتِيْهِمْ مِّنْ رَّسُوْلٍ اِلَّا كَانُوْا بِهٖ يَسْتَهْزِءُوْنَ", "lat": "yâ ḫasratan ‘alal-‘ibâd, mâ ya’tîhim mir rasûlin illâ kânû bihî yastahzi’ûn", "t": 328.69}, {"ar": "اَلَمْ يَرَوْا كَمْ اَهْلَكْنَا قَبْلَهُمْ مِّنَ الْقُرُوْنِ اَنَّهُمْ اِلَيْهِمْ لَا يَرْجِعُوْنَ", "lat": "a lam yarau kam ahlaknâ qablahum minal-qurûni annahum ilaihim lâ yarji‘ûn", "t": 336.68}, {"ar": "وَاِنْ كُلٌّ لَّمَّا جَمِيْعٌ لَّدَيْنَا مُحْضَرُوْنَ", "lat": "wa ing kullul lammâ jamî‘ul ladainâ muḫdlarûn", "t": 356.9}, {"ar": "وَاٰيَةٌ لَّهُمُ الْاَرْضُ الْمَيْتَةُ ۖاَحْيَيْنٰهَا وَاَخْرَجْنَا مِنْهَا حَبًّا فَمِنْهُ يَأْكُلُوْنَ", "lat": "wa âyatul lahumul-ardlul-maitatu aḫyainâhâ wa akhrajnâ min-hâ ḫabban fa min-hu ya’kulûn", "t": 396.84}, {"ar": "وَجَعَلْنَا فِيْهَا جَنّٰتٍ مِّنْ نَّخِيْلٍ وَّاَعْنَابٍ وَّفَجَّرْنَا فِيْهَا مِنَ الْعُيُوْنِۙ", "lat": "wa ja‘alnâ fîhâ jannâtim min nakhîliw wa a‘nâbiw wa fajjarnâ fîhâ minal-‘uyûn", "t": 406.4}, {"ar": "لِيَأْكُلُوْا مِنْ ثَمَرِهٖۙ وَمَا عَمِلَتْهُ اَيْدِيْهِمْ ۗ اَفَلَا يَشْكُرُوْنَ", "lat": "liya’kulû min tsamarihî wa mâ ‘amilat-hu aidîhim, a fa lâ yasykurûn", "t": 419.84}, {"ar": "سُبْحٰنَ الَّذِيْ خَلَقَ الْاَزْوَاجَ كُلَّهَا مِمَّا تُنْۢبِتُ الْاَرْضُ وَمِنْ اَنْفُسِهِمْ وَمِمَّا لَا يَعْلَمُوْنَ", "lat": "sub-ḫânalladzî khalaqal-azwâja kullahâ mimmâ tumbitul-ardlu wa min anfusihim wa mimmâ lâ ya‘lamûn", "t": 444.9}, {"ar": "وَاٰيَةٌ لَّهُمُ الَّيْلُ ۖنَسْلَخُ مِنْهُ النَّهَارَ فَاِذَا هُمْ مُّظْلِمُوْنَۙ", "lat": "wa âyatul lahumul-lailu naslakhu min-hun-nahâra fa idzâ hum mudhlimûn", "t": 461.34}, {"ar": "وَالشَّمْسُ تَجْرِيْ لِمُسْتَقَرٍّ لَّهَا ۗذٰلِكَ تَقْدِيْرُ الْعَزِيْزِ الْعَلِيْمِۗ", "lat": "wasy-syamsu tajrî limustaqarril lahâ, dzâlika taqdîrul-‘azîzil-‘alîm", "t": 473.26}, {"ar": "وَالْقَمَرَ قَدَّرْنٰهُ مَنَازِلَ حَتّٰى عَادَ كَالْعُرْجُوْنِ الْقَدِيْمِ", "lat": "wal-qamara qaddarnâhu manâzila ḫattâ ‘âda kal-‘urjûnil-qadîm", "t": 493.78}, {"ar": "لَا الشَّمْسُ يَنْۢبَغِيْ لَهَآ اَنْ تُدْرِكَ الْقَمَرَ وَلَا الَّيْلُ سَابِقُ النَّهَارِ ۗوَكُلٌّ فِيْ فَلَكٍ يَّسْبَحُوْنَ", "lat": "lasy-syamsu yambaghî lahâ an tudrikal-qamara wa lal-lailu sâbiqun-nahâr, wa kullun fî falakiy yasbaḫûn", "t": 513.89}, {"ar": "وَاٰيَةٌ لَّهُمْ اَنَّا حَمَلْنَا ذُرِّيَّتَهُمْ فِى الْفُلْكِ الْمَشْحُوْنِۙ", "lat": "wa âyatul lahum annâ ḫamalnâ dzurriyyatahum fil-fulkil-masy-ḫûn", "t": 524.49}, {"ar": "وَخَلَقْنَا لَهُمْ مِّنْ مِّثْلِهٖ مَا يَرْكَبُوْنَ", "lat": "wa khalaqnâ lahum mim mitslihî mâ yarkabûn", "t": 532.6}, {"ar": "وَاِنْ نَّشَأْ نُغْرِقْهُمْ فَلَا صَرِيْخَ لَهُمْ وَلَاهُمْ يُنْقَذُوْنَۙ", "lat": "wa in nasya’ nughriq-hum fa lâ sharîkha lahum wa lâ hum yungqadzûn", "t": 543.08}, {"ar": "اِلَّا رَحْمَةً مِّنَّا وَمَتَاعًا اِلٰى حِيْنٍ", "lat": "illâ raḫmatam minnâ wa matâ‘an ilâ ḫîn", "t": 551.8}, {"ar": "وَاِذَا قِيْلَ لَهُمُ اتَّقُوْا مَا بَيْنَ اَيْدِيْكُمْ وَمَا خَلْفَكُمْ لَعَلَّكُمْ تُرْحَمُوْنَ", "lat": "wa idzâ qîla lahumuttaqû mâ baina aidîkum wa mâ khalfakum la‘allakum tur-ḫamûn", "t": 563.56}, {"ar": "وَمَا تَأْتِيْهِمْ مِّنْ اٰيَةٍ مِّنْ اٰيٰتِ رَبِّهِمْ اِلَّا كَانُوْا عَنْهَا مُعْرِضِيْنَ", "lat": "wa mâ ta’tîhim min âyatim min âyâti rabbihim illâ kânû ‘an-hâ mu‘ridlîn", "t": 575.92}, {"ar": "وَاِذَا قِيْلَ لَهُمْ اَنْفِقُوْا مِمَّا رَزَقَكُمُ اللّٰهُ ۙقَالَ الَّذِيْنَ كَفَرُوْا لِلَّذِيْنَ اٰمَنُوْٓا اَنُطْعِمُ مَنْ لَّوْ يَشَاۤءُ اللّٰهُ اَطْعَمَهٗٓ ۖاِنْ اَنْتُمْ اِلَّا فِيْ ضَلٰلٍ مُّبِيْنٍ", "lat": "wa idzâ qîla lahum anfiqû mimmâ razaqakumullâhu qâlalladzîna kafarû lilladzîna âmanû a nuth‘imu mal lau yasyâ’ullâhu ath‘amahû in antum illâ fî dlalâlim mubîn", "t": 586.23}, {"ar": "وَيَقُوْلُوْنَ مَتٰى هٰذَا الْوَعْدُ اِنْ كُنْتُمْ صٰدِقِيْنَ", "lat": "wa yaqûlûna matâ hâdzal-wa‘du ing kuntum shâdiqîn", "t": 606.58}, {"ar": "مَا يَنْظُرُوْنَ اِلَّا صَيْحَةً وَّاحِدَةً تَأْخُذُهُمْ وَهُمْ يَخِصِّمُوْنَ", "lat": "mâ yandhurûna illâ shaiḫataw wâḫidatan ta’khudzuhum wa hum yakhishshimûn", "t": 616.42}, {"ar": "فَلَا يَسْتَطِيْعُوْنَ تَوْصِيَةً وَّلَآ اِلٰٓى اَهْلِهِمْ يَرْجِعُوْنَ", "lat": "fa lâ yastathî‘ûna taushiyataw wa lâ ilâ ahlihim yarji‘ûn", "t": 641.33}, {"ar": "وَنُفِخَ فِى الصُّوْرِ فَاِذَا هُمْ مِّنَ الْاَجْدَاثِ اِلٰى رَبِّهِمْ يَنْسِلُوْنَ", "lat": "wa nufikha fish-shûri fa idzâ hum minal-ajdâtsi ilâ rabbihim yansilûn", "t": 653.32}, {"ar": "قَالُوْا يٰوَيْلَنَا مَنْۢ بَعَثَنَا مِنْ مَّرْقَدِنَا ۜهٰذَا مَا وَعَدَ الرَّحْمٰنُ وَصَدَقَ الْمُرْسَلُوْنَ", "lat": "qâlû yâ wailanâ mam ba‘atsanâ mim marqadinâ hâdzâ mâ wa‘adar-raḫmânu wa shadaqal-mursalûn", "t": 669.79}, {"ar": "اِنْ كَانَتْ اِلَّا صَيْحَةً وَّاحِدَةً فَاِذَا هُمْ جَمِيْعٌ لَّدَيْنَا مُحْضَرُوْنَ", "lat": "ing kânat illâ shaiḫataw wâḫidatan fa idzâ hum jamî‘ul ladainâ muḫdlarûn", "t": 683.73}, {"ar": "فَالْيَوْمَ لَا تُظْلَمُ نَفْسٌ شَيْـًٔا وَّلَا تُجْزَوْنَ اِلَّا مَا كُنْتُمْ تَعْمَلُوْنَ", "lat": "fal-yauma lâ tudhlamu nafsun syai’aw wa lâ tujzauna illâ mâ kuntum ta‘malûn", "t": 698.42}, {"ar": "اِنَّ اَصْحٰبَ الْجَنَّةِ الْيَوْمَ فِيْ شُغُلٍ فٰكِهُوْنَ ۚ", "lat": "inna ash-ḫâbal-jannatil-yauma fî syughulin fâkihûn", "t": 710.04}, {"ar": "هُمْ وَاَزْوَاجُهُمْ فِيْ ظِلٰلٍ عَلَى الْاَرَاۤىِٕكِ مُتَّكِـُٔوْنَ ۚ", "lat": "hum wa azwâjuhum fî dhilâlin ‘alal-arâ’iki muttaki’ûn", "t": 720.99}, {"ar": "لَهُمْ فِيْهَا فَاكِهَةٌ وَّلَهُمْ مَّا يَدَّعُوْنَ ۚ", "lat": "lahum fîhâ fâkihatuw wa lahum mâ yadda‘ûn", "t": 739.22}, {"ar": "سَلٰمٌۗ قَوْلًا مِّنْ رَّبٍّ رَّحِيْمٍ", "lat": "salâm, qaulam mir rabbir raḫîm", "t": 746.54}, {"ar": "وَامْتَازُوا الْيَوْمَ اَيُّهَا الْمُجْرِمُوْنَ", "lat": "wamtâzul-yauma ayyuhal-mujrimûn", "t": 758.31}, {"ar": "اَلَمْ اَعْهَدْ اِلَيْكُمْ يٰبَنِيْٓ اٰدَمَ اَنْ لَّا تَعْبُدُوا الشَّيْطٰنَۚ اِنَّهٗ لَكُمْ عَدُوٌّ مُّبِيْنٌ", "lat": "a lam a‘had ilaikum yâ banî âdama al lâ ta‘budusy-syaithân, innahû lakum ‘aduwwum mubîn", "t": 765.86}, {"ar": "وَاَنِ اعْبُدُوْنِيْ ۗهٰذَا صِرَاطٌ مُّسْتَقِيْمٌ", "lat": "wa ani‘budûnî, hâdzâ shirâthum mustaqîm", "t": 768.31}, {"ar": "وَلَقَدْ اَضَلَّ مِنْكُمْ جِبِلًّا كَثِيْرًا ۗاَفَلَمْ تَكُوْنُوْا تَعْقِلُوْنَ", "lat": "wa laqad adlalla mingkum jibillang katsîrâ, a fa lam takûnû ta‘qilûn", "t": 775.16}, {"ar": "هٰذِهٖ جَهَنَّمُ الَّتِيْ كُنْتُمْ تُوْعَدُوْنَ", "lat": "hâdzihî jahannamullatî kuntum tû‘adûn", "t": 787.44}, {"ar": "اِصْلَوْهَا الْيَوْمَ بِمَا كُنْتُمْ تَكْفُرُوْنَ", "lat": "ishlauhal-yauma bimâ kuntum takfurûn", "t": 796.21}, {"ar": "اَلْيَوْمَ نَخْتِمُ عَلٰٓى اَفْوَاهِهِمْ وَتُكَلِّمُنَآ اَيْدِيْهِمْ وَتَشْهَدُ اَرْجُلُهُمْ بِمَا كَانُوْا يَكْسِبُوْنَ", "lat": "al-yauma nakhtimu ‘alâ afwâhihim wa tukallimunâ aidîhim wa tasy-hadu arjuluhum bimâ kânû yaksibûn", "t": 804.5}, {"ar": "وَلَوْ نَشَاۤءُ لَطَمَسْنَا عَلٰٓى اَعْيُنِهِمْ فَاسْتَبَقُوا الصِّرَاطَ فَاَنّٰى يُبْصِرُوْنَ", "lat": "walau nasyâ’u lathamasnâ ‘alâ a‘yunihim fastabaqush-shirâtha fa annâ yubshirûn", "t": 821.59}, {"ar": "وَلَوْ نَشَاۤءُ لَمَسَخْنٰهُمْ عَلٰى مَكَانَتِهِمْ فَمَا اسْتَطَاعُوْا مُضِيًّا وَّلَا يَرْجِعُوْنَ", "lat": "walau nasyâ’u lamasakhnâhum ‘alâ makânatihim famastathâ‘û mudliyyaw wa lâ yarji‘ûn", "t": 835.94}, {"ar": "وَمَنْ نُّعَمِّرْهُ نُنَكِّسْهُ فِى الْخَلْقِۗ اَفَلَا يَعْقِلُوْنَ", "lat": "wa man nu‘ammir-hu nunakkis-hu fil-khalq, a fa lâ ya‘qilûn", "t": 850.02}, {"ar": "وَمَا عَلَّمْنٰهُ الشِّعْرَ وَمَا يَنْۢبَغِيْ لَهٗ ۗاِنْ هُوَ اِلَّا ذِكْرٌ وَّقُرْاٰنٌ مُّبِيْنٌ ۙ", "lat": "wa mâ ‘allamnâhusy-syi‘ra wa mâ yambaghî lah, in huwa illâ dzikruw wa qur’ânum mubîn", "t": 860.31}, {"ar": "لِّيُنْذِرَ مَنْ كَانَ حَيًّا وَّيَحِقَّ الْقَوْلُ عَلَى الْكٰفِرِيْنَ", "lat": "liyundzira mang kâna ḫayyaw wa yaḫiqqal-qaulu ‘alal-kâfirîn", "t": 875.14}, {"ar": "اَوَلَمْ يَرَوْا اَنَّا خَلَقْنَا لَهُمْ مِّمَّا عَمِلَتْ اَيْدِيْنَآ اَنْعَامًا فَهُمْ لَهَا مَالِكُوْنَ", "lat": "a wa lam yarau annâ khalaqnâ lahum mimmâ ‘amilat aidînâ an‘âman fa hum lahâ mâlikûn", "t": 886.5}, {"ar": "وَذَلَّلْنٰهَا لَهُمْ فَمِنْهَا رَكُوْبُهُمْ وَمِنْهَا يَأْكُلُوْنَ", "lat": "wa dzallalnâhâ lahum fa min-hâ rakûbuhum wa min-hâ ya’kulûn", "t": 903.23}, {"ar": "وَلَهُمْ فِيْهَا مَنَافِعُ وَمَشَارِبُۗ اَفَلَا يَشْكُرُوْنَ", "lat": "wa lahum fîhâ manâfi‘u wa masyârib, a fa lâ yasykurûn", "t": 912.97}, {"ar": "وَاتَّخَذُوْا مِنْ دُوْنِ اللّٰهِ اٰلِهَةً لَّعَلَّهُمْ يُنْصَرُوْنَ ۗ", "lat": "wattakhadzû min dûnillâhi âlihatal la‘allahum yunsharûn", "t": 921.51}, {"ar": "لَا يَسْتَطِيْعُوْنَ نَصْرَهُمْۙ وَهُمْ لَهُمْ جُنْدٌ مُّحْضَرُوْنَ", "lat": "lâ yastathî‘ûna nashrahum wa hum lahum jundum muḫdlarûn", "t": 932.01}, {"ar": "فَلَا يَحْزُنْكَ قَوْلُهُمْ ۘاِنَّا نَعْلَمُ مَا يُسِرُّوْنَ وَمَا يُعْلِنُوْنَ", "lat": "fa lâ yaḫzungka qauluhum, innâ na‘lamu mâ yusirrûna wa mâ yu‘linûn", "t": 942.46}, {"ar": "اَوَلَمْ يَرَ الْاِنْسَانُ اَنَّا خَلَقْنٰهُ مِنْ نُّطْفَةٍ فَاِذَا هُوَ خَصِيْمٌ مُّبِيْنٌ", "lat": "a wa lam yaral-insânu annâ khalaqnâhu min nuthfatin fa idzâ huwa khashîmum mubîn", "t": 969.55}, {"ar": "وَضَرَبَ لَنَا مَثَلًا وَّنَسِيَ خَلْقَهٗۗ قَالَ مَنْ يُّحْيِ الْعِظَامَ وَهِيَ رَمِيْمٌ", "lat": "wa dlaraba lanâ matsalaw wa nasiya khalqah, qâla may yuḫyil-‘idhâma wa hiya ramîm", "t": 981.91}, {"ar": "قُلْ يُحْيِيْهَا الَّذِيْٓ اَنْشَاَهَآ اَوَّلَ مَرَّةٍ ۗوَهُوَ بِكُلِّ خَلْقٍ عَلِيْمٌ ۙ", "lat": "qul yuḫyîhalladzî ansya’ahâ awwala marrah, wa huwa bikulli khalqin ‘alîm", "t": 990.63}, {"ar": "الَّذِيْ جَعَلَ لَكُمْ مِّنَ الشَّجَرِ الْاَخْضَرِ نَارًاۙ فَاِذَآ اَنْتُمْ مِّنْهُ تُوْقِدُوْنَ", "lat": "alladzî ja‘ala lakum minasy-syajaril-akhdlari nâran fa idzâ antum min-hu tûqidûn", "t": 995.99}, {"ar": "اَوَلَيْسَ الَّذِيْ خَلَقَ السَّمٰوٰتِ وَالْاَرْضَ بِقٰدِرٍ عَلٰٓى اَنْ يَّخْلُقَ مِثْلَهُمْ ۗبَلٰى وَهُوَ الْخَلّٰقُ الْعَلِيْمُ", "lat": "a wa laisalladzî khalaqas-samâwâti wal-ardla biqâdirin ‘alâ ay yakhluqa mitslahum, balâ wa huwal-khallâqul-‘alîm", "t": 1010.67}, {"ar": "اِنَّمَآ اَمْرُهٗٓ اِذَآ اَرَادَ شَيْـًٔاۖ اَنْ يَّقُوْلَ لَهٗ كُنْ فَيَكُوْنُ", "lat": "innamâ amruhû idzâ arâda syai’an ay yaqûla lahû kun fa yakûn", "t": 1028.7}, {"ar": "فَسُبْحٰنَ الَّذِيْ بِيَدِهٖ مَلَكُوْتُ كُلِّ شَيْءٍ وَّاِلَيْهِ تُرْجَعُوْنَ", "lat": "fa sub-ḫânalladzî biyadihî malakûtu kulli syai’iw wa ilaihi turja‘ûn", "t": 1045.97}]</script>
+<script>
+/* ===== Isi karangan bunga (ubah di sini) ===== */
+const WREATH = {
+  arab: 'إِنَّا لِلَّٰهِ وَإِنَّا إِلَيْهِ رَاجِعُونَ',
+  latin: "Inna lillahi wa inna ilaihi raji'un",
+  nama: 'Ny. Mariabita Tahu Beretalo',
+  baris: ['Ibunda dari', 'Bpk. Hariadi Yutanto, S.Kom., M.Kom.'],
+  instansi: ['Dosen Universitas Hayam Wuruk', 'Perbanas Surabaya'],
+  pengirim: '' // contoh: 'Keluarga Besar Mahasiswa Informatika' (kosong = tidak ditampilkan)
+};
+
+/* ===== Gambar karangan bunga (SVG) ===== */
+(function(){
+  let seed=11; const R=()=>(seed=(seed*16807)%2147483647)/2147483647;
+  const f=n=>Math.round(n*10)/10;
+  const chrys=(x,y,r)=>{let s=`<g transform="translate(${f(x)} ${f(y)}) rotate(${(R()*360)|0})">`;
+    for(const [n,k,c] of [[18,1,'#f2efe5'],[15,.82,'#fbfaf5'],[12,.62,'#efebdd'],[10,.44,'#fffefa'],[7,.26,'#e8e2cb']])
+      for(let i=0;i<n;i++)s+=`<ellipse cx="0" cy="${f(-r*k*.5)}" rx="${f(r*.08+r*k*.04)}" ry="${f(r*k*.5)}" transform="rotate(${f(360/n*i+k*20)})" fill="${c}" stroke="#c3bea9" stroke-width=".6"/>`;
+    return s+`<circle r="${f(r*.09)}" fill="#d6c98a"/></g>`};
+  const lily=(x,y,r)=>{let s=`<g transform="translate(${f(x)} ${f(y)}) rotate(${(R()*360)|0})">`;
+    const p=`M0 0C${f(r*.36)} ${f(-r*.25)} ${f(r*.3)} ${f(-r*.8)} 0 ${-r}C${f(-r*.3)} ${f(-r*.8)} ${f(-r*.36)} ${f(-r*.25)} 0 0Z`;
+    for(let i=0;i<3;i++)s+=`<path d="${p}" transform="rotate(${i*120+60}) scale(.92)" fill="#ece9de" stroke="#c9c4b0" stroke-width=".7"/>`;
+    for(let i=0;i<3;i++)s+=`<path d="${p}" transform="rotate(${i*120})" fill="#fdfcf8" stroke="#cdc8b4" stroke-width=".7"/><path d="M0 0L0 ${f(-r*.78)}" transform="rotate(${i*120})" stroke="#d8d4bf" stroke-width=".8"/>`;
+    for(let i=0;i<6;i++){const a=i*60+15,l=r*.5;s+=`<g transform="rotate(${a})"><path d="M0 0L0 ${f(-l)}" stroke="#bda55a" stroke-width="1"/><ellipse cy="${f(-l)}" rx="${f(r*.04)}" ry="${f(r*.09)}" fill="#a77d22"/></g>`}
+    return s+'</g>'};
+  const leaf=(x,y,l,rot,c)=>`<g transform="translate(${f(x)} ${f(y)}) rotate(${f(rot)})"><path d="M0 0C${f(l*.25)} ${f(-l*.2)} ${f(l*.7)} ${f(-l*.17)} ${f(l)} 0C${f(l*.7)} ${f(l*.17)} ${f(l*.25)} ${f(l*.2)} 0 0Z" fill="${c}"/><path d="M0 0L${f(l*.92)} 0" stroke="rgba(255,255,255,.18)" stroke-width="1"/></g>`;
+  const greens=['#27402f','#325240','#3d6350','#1f3326'];
+  const cluster=(cx,cy,rx,ry,n,rmin,rmax,leafN,leafL,aMin,aMax)=>{
+    let s='';
+    for(let i=0;i<leafN;i++){const a=aMin+(aMax-aMin)*(i/(leafN-1))+(R()-.5)*8;s+=leaf(cx,cy,leafL*(.7+R()*.5),a,greens[(R()*4)|0])}
+    const items=[];for(let i=0;i<n;i++){const t=R()*Math.PI*2,d=Math.sqrt(R());items.push({x:cx+Math.cos(t)*rx*d,y:cy+Math.sin(t)*ry*d,d,lily:R()<.38})}
+    items.sort((a,b)=>b.d-a.d);
+    for(const it of items){const r=rmax-(rmax-rmin)*it.d*.8;s+=it.lily?lily(it.x,it.y,r*1.05):chrys(it.x,it.y,r)}
+    for(let i=0;i<26;i++){const t=R()*Math.PI*2,d=.7+R()*.55;const x=cx+Math.cos(t)*rx*d,y=cy+Math.sin(t)*ry*d;s+=`<circle cx="${f(x)}" cy="${f(y)}" r="${f(2+R()*2.2)}" fill="#fff" stroke="#d6d2c2" stroke-width=".5"/>`}
+    return s};
+  const bow=(x,y)=>`<g transform="translate(${x} ${y})" stroke="#c4ab6c" stroke-width="1.1" fill="#12171a">
+    <path d="M-8 6L-44 92 -22 80 -6 104 4 14Z"/><path d="M8 6L44 92 22 80 6 104-4 14Z"/>
+    <path d="M0 0C-24-30-66-30-70-6-72 16-30 14 0 0Z"/><path d="M0 0C24-30 66-30 70-6 72 16 30 14 0 0Z"/>
+    <rect x="-11" y="-11" width="22" height="22" rx="6"/></g>`;
+
+  const T=WREATH, hasS=!!T.pengirim;
+  let s=`<ellipse cx="300" cy="772" rx="210" ry="14" fill="rgba(0,0,0,.4)"/>
+  <g stroke="#2a1d14" stroke-linecap="round"><path d="M185 520L118 770M415 520L482 770" stroke-width="13"/><path d="M158 640L442 640" stroke-width="8"/><path d="M185 520L118 770M415 520L482 770" stroke-width="3" stroke="#5a4130"/></g>
+  <rect x="96" y="60" width="408" height="486" rx="8" fill="#f5f3ec" stroke="#1a1f1c" stroke-width="5"/>
+  <rect x="110" y="74" width="380" height="458" rx="3" fill="none" stroke="#b5a064" stroke-width="1.2"/>
+  <rect x="116" y="80" width="368" height="446" rx="2" fill="none" stroke="#b5a064" stroke-width=".5"/>`;
+  s+=cluster(112,92,66,52,8,24,36,9,86,-200,-70)+cluster(488,92,66,52,8,24,36,9,86,-110,20);
+  s+=cluster(300,66,60,22,5,20,28,6,60,-190,10);
+  s+=`<g fill="#1b211e" text-anchor="middle">
+   <text class="t-ar" x="300" y="148" font-size="33" data-fit="340">${T.arab}</text>
+   <text class="t-serif" x="300" y="185" font-size="19" font-style="italic" fill="#3a443f" data-fit="340">${T.latin}</text>
+   <g stroke="#b5a064" stroke-width="1"><path d="M170 211H282M318 211H430"/></g><path d="M300 204L306 211 300 218 294 211Z" fill="#b5a064"/>
+   <text class="t-serif" x="300" y="258" font-size="31" font-weight="700" data-fit="350">${T.nama}</text>`;
+  T.baris.forEach((t,i)=>{s+=`<text class="t-serif" x="300" y="${301+i*27}" font-size="${i?21:17}" ${i?'font-weight="700"':'letter-spacing="1.5"'} fill="${i?'#1b211e':'#4a544e'}" data-fit="350">${t}</text>`});
+  T.instansi.forEach((t,i)=>{s+=`<text class="t-serif" x="300" y="${362+i*23}" font-size="17" fill="#3a443f" data-fit="350">${t}</text>`});
+  if(hasS)s+=`<text class="t-serif" x="300" y="${hasS?440:0}" font-size="15" font-style="italic" fill="#4a544e" data-fit="340">${T.pengirim}</text>`;
+  s+='</g>';
+  s+=cluster(300,556,168,46,22,28,48,16,92,-172,-8)+bow(300,584);
+  document.getElementById('wreath').innerHTML=s;
+  const fit=()=>document.querySelectorAll('#wreath [data-fit]').forEach(t=>{const m=+t.dataset.fit;t.removeAttribute('textLength');const w=t.getComputedTextLength();if(w>m){t.setAttribute('textLength',m);t.setAttribute('lengthAdjust','spacingAndGlyphs')}});
+  fit();if(document.fonts&&document.fonts.ready)document.fonts.ready.then(fit);
+})();
+
+/* ===== Kamera ===== */
+const $=id=>document.getElementById(id),cam=$('cam'),gate=$('gate');
+let facing='environment',stream=null;
+function gateMsg(t,p,retry){$('gtitle').textContent=t;$('gtext').textContent=p;$('retry').hidden=!retry;$('skip').hidden=!retry;gate.classList.remove('off')}
+async function startCamera(){
+  if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){gateMsg('Kamera tidak tersedia','Buka tautan ini lewat alamat https:// di peramban ponsel agar kamera dapat dipakai.',true);return}
+  try{
+    if(stream)stream.getTracks().forEach(t=>t.stop());
+    stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:facing},width:{ideal:1280},height:{ideal:720}},audio:false});
+    cam.srcObject=stream;await cam.play().catch(()=>{});
+    document.body.classList.add('cam-on');gate.classList.add('off');
+  }catch(e){gateMsg('Akses kamera ditolak','Izinkan kamera pada pengaturan peramban, lalu coba lagi. Karangan bunga tetap bisa dilihat tanpa kamera.',true)}
+}
+$('retry').onclick=startCamera;$('skip').onclick=()=>gate.classList.add('off');
+$('flip').onclick=()=>{facing=facing==='environment'?'user':'environment';startCamera()};
+startCamera();
+
+/* ===== Gerak: geser, cubit, dan jangkar giroskop ===== */
+const user=$('user');let bx=0,by=0,bs=1,px=0,py=0,tx=0,ty=0;
+const ptrs=new Map();let pinch0=0,s0=1;
+function apply(){px+=(tx-px)*.12;py+=(ty-py)*.12;user.style.transform=`translate(${bx+px}px,${by+py}px) scale(${bs})`;requestAnimationFrame(apply)}apply();
+const W=$('world');
+W.addEventListener('pointerdown',e=>{W.setPointerCapture(e.pointerId);ptrs.set(e.pointerId,{x:e.clientX,y:e.clientY});if(ptrs.size===2){const[a,b]=[...ptrs.values()];pinch0=Math.hypot(a.x-b.x,a.y-b.y);s0=bs}$('hint').style.opacity=0;askMotion()});
+W.addEventListener('pointermove',e=>{const p=ptrs.get(e.pointerId);if(!p)return;
+  if(ptrs.size===1){bx+=e.clientX-p.x;by+=e.clientY-p.y}
+  p.x=e.clientX;p.y=e.clientY;
+  if(ptrs.size===2){const[a,b]=[...ptrs.values()];bs=Math.min(2.6,Math.max(.4,s0*Math.hypot(a.x-b.x,a.y-b.y)/pinch0))}});
+['pointerup','pointercancel'].forEach(t=>W.addEventListener(t,e=>ptrs.delete(e.pointerId)));
+W.addEventListener('dblclick',()=>{bx=by=0;bs=1});
+setTimeout(()=>$('hint').style.opacity=0,7000);
+let ref=null,motionOn=false;
+function onOri(e){if(e.alpha==null||e.beta==null)return;if(!ref)ref={a:e.alpha,b:e.beta};
+  const ppd=innerWidth/55;let da=((e.alpha-ref.a+540)%360)-180,db=e.beta-ref.b;
+  tx=Math.max(-innerWidth,Math.min(innerWidth,da*ppd));ty=Math.max(-innerHeight/2,Math.min(innerHeight/2,db*ppd))}
+async function askMotion(){if(motionOn)return;motionOn=true;
+  try{if(window.DeviceOrientationEvent&&typeof DeviceOrientationEvent.requestPermission==='function'){const r=await DeviceOrientationEvent.requestPermission();if(r!=='granted')return}
+    addEventListener('deviceorientation',onOri)}catch(e){}}
+if(!(window.DeviceOrientationEvent&&typeof DeviceOrientationEvent.requestPermission==='function'))addEventListener('deviceorientation',onOri);
+
+/* ===== Dock ===== */
+const track=$('track'),slides=[...document.querySelectorAll('.slide')],dots=[...document.querySelectorAll('#dots i')];
+function setMode(i){slides.forEach((s,k)=>s.classList.toggle('on',k===i));dots.forEach((d,k)=>d.classList.toggle('on',k===i));document.body.dataset.mode=i?'yasin':'wreath'}
+let tick=0;track.addEventListener('scroll',()=>{cancelAnimationFrame(tick);tick=requestAnimationFrame(()=>{const m=track.scrollWidth-track.clientWidth;setMode(m>0&&track.scrollLeft>m/2?1:0)})},{passive:true});
+slides.forEach((s,i)=>s.onclick=()=>{setMode(i);s.scrollIntoView({behavior:'smooth',inline:'center',block:'nearest'})});
+new ResizeObserver(()=>document.documentElement.style.setProperty('--dock-h',$('dock').offsetHeight+'px')).observe($('dock'));
+
+/* ===== Yasin ===== */
+const V=JSON.parse($('vdata').textContent),aud=$('aud'),list=$('list');
+list.innerHTML=V.map((v,i)=>`<div class="v" data-i="${i}"><span class="n">${i+1}</span><div><p class="a" lang="ar">${v.ar}</p><p class="l">${v.lat}</p></div></div>`).join('');
+const items=[...list.children];let cur=-1,userScroll=0;
+const mmss=t=>{t=Math.max(0,t|0);return String(t/60|0).padStart(2,'0')+':'+String(t%60).padStart(2,'0')};
+function idxAt(t){let lo=0,hi=V.length-1;while(lo<hi){const m=(lo+hi+1)>>1;if(V[m].t<=t+.05)lo=m;else hi=m-1}return lo}
+function mark(i){if(i===cur)return;if(cur>=0)items[cur].classList.remove('on');cur=i;items[i].classList.add('on');
+  if(Date.now()-userScroll>3500)list.scrollTo({top:items[i].offsetTop-list.clientHeight/2+items[i].offsetHeight/2-list.offsetTop,behavior:'smooth'})}
+list.addEventListener('wheel',()=>userScroll=Date.now(),{passive:true});list.addEventListener('touchmove',()=>userScroll=Date.now(),{passive:true});
+function ui(){const d=aud.duration||0;$('time').textContent=mmss(aud.currentTime)+' / '+mmss(d);if(d&&!seeking)$('seek').value=aud.currentTime/d*1000;mark(idxAt(aud.currentTime))}
+let seeking=false;
+aud.addEventListener('timeupdate',ui);aud.addEventListener('loadedmetadata',ui);
+const PLAY='<path d="M8 5v14l11-7z"/>',PAUSE='<path d="M7 5h4v14H7zM13 5h4v14h-4z"/>';
+const setIco=p=>{$('ico').innerHTML=p?PAUSE:PLAY;$('play').setAttribute('aria-label',p?'Jeda':'Putar')};
+aud.addEventListener('play',()=>setIco(true));aud.addEventListener('pause',()=>setIco(false));aud.addEventListener('ended',()=>{setIco(false);aud.currentTime=0});
+$('play').onclick=()=>aud.paused?aud.play().catch(()=>{}):aud.pause();
+$('seek').addEventListener('input',e=>{seeking=true;if(aud.duration)aud.currentTime=e.target.value/1000*aud.duration});
+$('seek').addEventListener('change',()=>seeking=false);
+const go=i=>{i=Math.max(0,Math.min(V.length-1,i));aud.currentTime=V[i].t;userScroll=0;mark(i)};
+$('next').onclick=()=>go(idxAt(aud.currentTime)+1);
+$('prev').onclick=()=>{const i=idxAt(aud.currentTime);go(aud.currentTime-V[i].t>2?i:i-1)};
+items.forEach((el,i)=>el.onclick=()=>{go(i);if(aud.paused)aud.play().catch(()=>{})});
+mark(0);
+</script>
+</body>
+</html>
