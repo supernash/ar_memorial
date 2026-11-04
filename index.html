@@ -96,6 +96,10 @@ body[data-mode="yasin"] #yasin{transform:none;opacity:1;pointer-events:auto}
 #ctrl{grid-column:1/-1;display:flex;justify-content:center;align-items:center;gap:18px}
 #ctrl button{width:44px;height:44px;border-radius:50%;border:1px solid var(--line);background:transparent;color:var(--bone);display:grid;place-items:center;cursor:pointer}
 #ctrl button svg{width:20px;height:20px}
+#tune{grid-column:1/-1;display:flex;align-items:center;justify-content:center;gap:12px;font-size:12px;color:var(--muted)}
+#tune[hidden]{display:none}
+#tune button{width:36px;height:36px;border-radius:50%;border:1px solid var(--line);background:transparent;color:var(--bone);font:600 18px var(--sans);cursor:pointer}
+#tune b{min-width:64px;text-align:center;color:var(--gold);font-variant-numeric:tabular-nums}
 #ctrl #play{width:56px;height:56px;background:var(--gold);color:#17120a;border-color:var(--gold)}
 #ctrl #play svg{width:24px;height:24px}
 #list{overflow-y:auto;padding:6px 6px 10px;scroll-behavior:smooth;-webkit-overflow-scrolling:touch}
@@ -127,6 +131,7 @@ body[data-mode="yasin"] #yasin{transform:none;opacity:1;pointer-events:auto}
   <div id="player">
     <div class="ttl"><b>Surah Yasin</b><span id="time">00:00 / 00:00</span></div>
     <input id="seek" type="range" min="0" max="1000" value="0" aria-label="Posisi audio">
+    <div id="tune" hidden><span>Sinkron teks</span><button id="dm" aria-label="Lebih cepat">−</button><b id="dv">0</b><button id="dp" aria-label="Lebih lambat">+</button></div>
     <div id="ctrl">
       <button id="prev" aria-label="Ayat sebelumnya"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 5h2v14H6zM20 5v14L9.5 12z"/></svg></button>
       <button id="play" aria-label="Putar"><svg id="ico" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></button>
@@ -270,7 +275,9 @@ const V=JSON.parse($('vdata').textContent),aud=$('aud'),list=$('list');
 list.innerHTML=V.map((v,i)=>`<div class="v" data-i="${i}"><span class="n">${v.n?v.n:"۞"}</span><div><p class="a" lang="ar">${v.ar}</p><p class="l">${v.lat}</p></div></div>`).join('');
 const items=[...list.children];let cur=-1,userScroll=0;
 const mmss=t=>{t=Math.max(0,t|0);return String(t/60|0).padStart(2,'0')+':'+String(t%60).padStart(2,'0')};
-function idxAt(t){let lo=0,hi=V.length-1;while(lo<hi){const m=(lo+hi+1)>>1;if(V[m].t<=t+.05)lo=m;else hi=m-1}return lo}
+/* Jeda sorotan ayat (detik). Naikkan bila teks terasa mendahului suara. Buka halaman dengan #sync untuk menyetel langsung. */
+let DELAY=0.6;try{const s=parseFloat(localStorage.getItem('yasinDelay'));if(!isNaN(s))DELAY=s}catch(e){}
+function idxAt(t){let lo=0,hi=V.length-1;while(lo<hi){const m=(lo+hi+1)>>1;if(V[m].t+DELAY<=t+.02)lo=m;else hi=m-1}return lo}
 function mark(i){if(i===cur)return;if(cur>=0)items[cur].classList.remove('on');cur=i;items[i].classList.add('on');
   if(Date.now()-userScroll>3500)list.scrollTo({top:items[i].offsetTop-list.clientHeight/2+items[i].offsetHeight/2-list.offsetTop,behavior:'smooth'})}
 list.addEventListener('wheel',()=>userScroll=Date.now(),{passive:true});list.addEventListener('touchmove',()=>userScroll=Date.now(),{passive:true});
@@ -283,11 +290,16 @@ aud.addEventListener('play',()=>setIco(true));aud.addEventListener('pause',()=>s
 $('play').onclick=()=>aud.paused?aud.play().catch(()=>{}):aud.pause();
 $('seek').addEventListener('input',e=>{seeking=true;if(aud.duration)aud.currentTime=e.target.value/1000*aud.duration});
 $('seek').addEventListener('change',()=>seeking=false);
-const go=i=>{i=Math.max(0,Math.min(V.length-1,i));aud.currentTime=V[i].t;userScroll=0;mark(i)};
+const go=i=>{i=Math.max(0,Math.min(V.length-1,i));aud.currentTime=V[i].t+DELAY+.03;userScroll=0;mark(i)};
 $('next').onclick=()=>go(idxAt(aud.currentTime)+1);
-$('prev').onclick=()=>{const i=idxAt(aud.currentTime);go(aud.currentTime-V[i].t>2?i:i-1)};
+$('prev').onclick=()=>{const i=idxAt(aud.currentTime);go(aud.currentTime-V[i].t-DELAY>2?i:i-1)};
 items.forEach((el,i)=>el.onclick=()=>{go(i);if(aud.paused)aud.play().catch(()=>{})});
 mark(0);
+/* alat setel sinkron: buka tautan dengan #sync */
+if(location.hash==='#sync'){$('tune').hidden=false;
+  const show=()=>$('dv').textContent=(DELAY>=0?'+':'')+DELAY.toFixed(2)+' dtk';
+  const set=d=>{DELAY=Math.round(d*100)/100;try{localStorage.setItem('yasinDelay',DELAY)}catch(e){}show();cur=-1;mark(idxAt(aud.currentTime))};
+  $('dm').onclick=()=>set(DELAY-.25);$('dp').onclick=()=>set(DELAY+.25);show()}
 </script>
 </body>
 </html>
