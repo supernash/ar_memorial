@@ -53,6 +53,15 @@ body[data-mode="yasin"] #anchor{transform:translate(-50%,-50%) translateY(-28vh)
 .iconbtn:focus-visible,button:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
 .iconbtn svg{width:20px;height:20px}
 
+#snap{position:fixed;right:max(16px,env(safe-area-inset-right,0px));bottom:calc(var(--dock-h) + 14px);width:52px;height:52px;z-index:3;border-color:var(--gold);transition:opacity .3s}
+#snap svg{width:24px;height:24px;color:var(--gold)}
+body[data-mode="yasin"] #snap{opacity:0;pointer-events:none}
+#flash{position:fixed;inset:0;background:#fff;opacity:0;pointer-events:none;z-index:30}
+#flash.go{animation:flash .45s ease-out}
+@keyframes flash{0%{opacity:.85}100%{opacity:0}}
+#toast{position:fixed;left:50%;top:calc(64px + env(safe-area-inset-top,0px));transform:translate(-50%,-8px);padding:9px 16px;border-radius:99px;background:var(--panel);border:1px solid var(--gold);
+  backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);font-size:13px;opacity:0;pointer-events:none;transition:all .35s;z-index:31;white-space:nowrap}
+#toast.on{opacity:1;transform:translate(-50%,0)}
 #hint{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(var(--dock-h) + 14px);padding:8px 14px;border-radius:99px;font-size:12px;
   background:var(--panel);border:1px solid var(--line);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);transition:opacity .6s;white-space:nowrap}
 body[data-mode="yasin"] #hint{display:none}
@@ -121,10 +130,13 @@ body[data-mode="yasin"] #yasin{transform:none;opacity:1;pointer-events:auto}
 <div id="world"><div id="anchor"><div id="user"><div id="sway"><svg id="wreath" viewBox="0 0 600 790" role="img" aria-label="Karangan bunga duka cita"></svg></div></div></div></div>
 
 <div id="top">
-  <div class="lbl">AR Memorial<i>Turut berduka cita</i></div>
+  <div class="lbl">AR Memorial<i>Ruang Kenangan</i></div>
   <button class="iconbtn" id="flip" aria-label="Balik kamera"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8a3 3 0 0 1 3-3h2l1.5-2h5L16 5h2a3 3 0 0 1 3 3v9a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3z"/><path d="M9 12.5a3.2 3.2 0 0 1 5.6-2M15 12.5a3.2 3.2 0 0 1-5.6 2"/></svg></button>
 </div>
 
+<button class="iconbtn" id="snap" aria-label="Ambil tangkapan layar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="18" height="14" rx="3"/><circle cx="12" cy="13" r="3.6"/><path d="M8.5 6l1.2-2h4.6l1.2 2"/></svg></button>
+<div id="flash"></div>
+<div id="toast" role="status"></div>
 <div id="hint">Geser untuk memindah · cubit untuk memperbesar</div>
 
 <section id="yasin" aria-label="Pemutar Surah Yasin">
@@ -300,6 +312,51 @@ if(location.hash==='#sync'){$('tune').hidden=false;
   const show=()=>$('dv').textContent=(DELAY>=0?'+':'')+DELAY.toFixed(2)+' dtk';
   const set=d=>{DELAY=Math.round(d*100)/100;try{localStorage.setItem('yasinDelay',DELAY)}catch(e){}show();cur=-1;mark(idxAt(aud.currentTime))};
   $('dm').onclick=()=>set(DELAY-.25);$('dp').onclick=()=>set(DELAY+.25);show()}
+
+/* ===== Tangkapan layar: kamera + karangan bunga ===== */
+(function(){
+  const svg=$('wreath'),btn=$('snap');let busy=false;
+  const toast=t=>{const e=$('toast');e.textContent=t;e.classList.add('on');clearTimeout(toast.t);toast.t=setTimeout(()=>e.classList.remove('on'),2600)};
+  async function render(){
+    await (document.fonts&&document.fonts.ready);
+    const dpr=Math.min(window.devicePixelRatio||1,2),W=Math.round(innerWidth*dpr),H=Math.round(innerHeight*dpr);
+    const cv=document.createElement('canvas');cv.width=W;cv.height=H;const x=cv.getContext('2d');
+    if(document.body.classList.contains('cam-on')&&cam.videoWidth){
+      const k=Math.max(W/cam.videoWidth,H/cam.videoHeight),dw=cam.videoWidth*k,dh=cam.videoHeight*k;
+      x.drawImage(cam,(W-dw)/2,(H-dh)/2,dw,dh);
+    }else{const g=x.createRadialGradient(W/2,H*.3,0,W/2,H*.3,H*.8);g.addColorStop(0,'#1b2520');g.addColorStop(1,'#0b0f0d');x.fillStyle=g;x.fillRect(0,0,W,H)}
+    const r=svg.getBoundingClientRect(),rw=r.width*dpr,rh=r.height*dpr,rx=r.left*dpr,ry=r.top*dpr;
+    const c=svg.cloneNode(true);c.querySelectorAll('text').forEach(t=>t.remove());
+    c.setAttribute('xmlns','http://www.w3.org/2000/svg');c.setAttribute('width',Math.round(rw));c.setAttribute('height',Math.round(rh));
+    const url=URL.createObjectURL(new Blob([new XMLSerializer().serializeToString(c)],{type:'image/svg+xml'}));
+    const img=await new Promise((ok,no)=>{const i=new Image();i.onload=()=>ok(i);i.onerror=no;i.src=url});
+    x.drawImage(img,rx,ry,rw,rh);URL.revokeObjectURL(url);
+    const s=rw/600;x.textAlign='center';x.textBaseline='alphabetic';
+    svg.querySelectorAll('text').forEach(t=>{
+      const fam=t.classList.contains('t-ar')?"Amiri,'Noto Naskh Arabic',serif":"'Cormorant Garamond',Georgia,serif";
+      x.font=`${t.getAttribute('font-style')||'normal'} ${t.getAttribute('font-weight')||'400'} ${parseFloat(t.getAttribute('font-size'))*s}px ${fam}`;
+      x.fillStyle=t.getAttribute('fill')||'#1b211e';
+      if('letterSpacing' in x)x.letterSpacing=(parseFloat(t.getAttribute('letter-spacing'))||0)*s+'px';
+      const m=parseFloat(t.dataset.fit)*s;
+      x.fillText(t.textContent,rx+parseFloat(t.getAttribute('x'))*s,ry+parseFloat(t.getAttribute('y'))*s,m);
+    });
+    return new Promise(ok=>cv.toBlob(ok,'image/jpeg',.92));
+  }
+  btn.onclick=async()=>{
+    if(busy)return;busy=true;
+    try{
+      $('flash').classList.remove('go');void $('flash').offsetWidth;$('flash').classList.add('go');
+      const blob=await render(),name='ar-memorial-'+Date.now()+'.jpg',file=new File([blob],name,{type:'image/jpeg'});
+      if(navigator.canShare&&navigator.canShare({files:[file]})){
+        try{await navigator.share({files:[file],title:'AR Memorial'});toast('Foto siap disimpan')}catch(e){if(e&&e.name!=='AbortError')throw e}
+      }else{
+        const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();a.remove();
+        setTimeout(()=>URL.revokeObjectURL(a.href),4000);toast('Foto tersimpan');
+      }
+    }catch(e){toast('Gagal mengambil foto')}
+    busy=false;
+  };
+})();
 </script>
 </body>
 </html>
